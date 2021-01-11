@@ -71,7 +71,10 @@ first_node()->
 		   {_,"joq62",_,_,_,running}],
 		  db_server:read_all()),
     
+    
+    
     % start Syslog on all hosts :-)
+    
     %% Glurk borde parameteriseras
     
     _SyslogsApps=["syslog_100_c1.app_spec","syslog_100_c2.app_spec",

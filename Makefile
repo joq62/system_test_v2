@@ -31,8 +31,10 @@ test:
 	erlc -o dbase/ebin ../services/dbase_src/src/*.erl;
 	erlc -o dbase/ebin app_files/dbase/*.erl;
 	cp app_files/dbase/*.app dbase/ebin;
-#	Common service
 #	test application
+#	Common service
+	erlc -o test_ebin ../services/common_src/src/*.erl;
+	erlc -o test_ebin ../services/control_src/src/*.erl;
 	cp test_src/*.app test_ebin;	
 	erlc -o test_ebin test_src/*.erl;
 	erl -pa test_ebin\
