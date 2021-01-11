@@ -2,7 +2,7 @@ all:
 	erlc -o test_ebin test_src/*.erl;
 	rm -rf test_ebin/* test_src/*.beam src/*.beam *.beam;
 	rm -rf terminal/ebin/* log/ebin/* dbase/ebin/*;
-	rm -rf  *~ */*~  erl_cra*;
+	rm -rf  *~ */*~ */*/*~ erl_cra*;
 	rm -rf *_specs *_config *.log
 doc_gen:
 	echo glurk not implemented
