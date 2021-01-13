@@ -21,6 +21,8 @@ test:
 	rm -rf terminal/ebin/* log/ebin/* dbase/ebin/*;
 	rm -rf  *~ */*~  erl_cra*;
 	rm -rf *_specs *_config *.log;
+# 	test object
+	erlc -o test_ebin ../services/control_src/src/*.erl;
 #	Log service
 	erlc -o log/ebin ../services/common_src/src/*.erl;
 	erlc -o log/ebin ../services/log_src/src/*.erl;
@@ -34,7 +36,6 @@ test:
 #	test application
 #	Common service
 	erlc -o test_ebin ../services/common_src/src/*.erl;
-	erlc -o test_ebin ../services/control_src/src/*.erl;
 	cp test_src/*.app test_ebin;	
 	erlc -o test_ebin test_src/*.erl;
 	erl -pa test_ebin\

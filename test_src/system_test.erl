@@ -81,7 +81,9 @@ ping()->
 %% ====================================================================
 %% Server functions
 %% ====================================================================
--define(TestSuit,[{system_init_test,start,[],10*5000}%%%%%,
+-define(TestSuit,[{system_init_test,start,[],3*5000},
+		  {create_delete_app_test,start,[],6*5000}%%%,
+		  
 		  %{dbase_cluster_test,start,[],5*5000}
 		 ]).
 %% --------------------------------------------------------------------
@@ -94,14 +96,6 @@ ping()->
 %
 %% --------------------------------------------------------------------
 init([]) ->
-
-    % Start log 
-%    {ok,HostId}=net:gethostname(),
-%    SyslogNode=list_to_atom("syslog@"++HostId),
-%    ?assertMatch({ok,SyslogNode},slave:start(HostId,syslog,"-pa log/ebin -setcookie abc")),
-%    ?assertMatch(ok,rpc:call(SyslogNode,application,start,[syslog],5000)),
-%    ?assertMatch({pong,SyslogNode,syslog},rpc:call(SyslogNode,syslog,ping,[],1000)),
-   % Start dbase
 
     % Testcases
     Result=[{rpc:call(node(),M,F,A,T),M,F,A}||{M,F,A,T}<-?TestSuit],

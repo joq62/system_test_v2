@@ -31,9 +31,22 @@ start()->
     ?assertEqual(ok,setup()),
     ?debugMsg("stop setup"),
 
-    ?debugMsg("Start first_node"),
-    ?assertEqual(ok,first_node()),
-    ?debugMsg("stop first_node"),
+    ?debugMsg("Start syslog"),
+    ?assertEqual(ok,syslog()),
+    ?debugMsg("stop syslog"),
+
+    ?debugMsg("Start dbase"),
+    ?assertEqual(ok,dbase()),
+    ?debugMsg("stop dbase"),
+
+    ?debugMsg("Start status_machines"),
+    ?assertEqual(ok,status_machines()),
+    ?debugMsg("stop status_machines"),
+
+
+ %   ?debugMsg("Start first_node"),
+ %   ?assertEqual(ok,first_node()),
+ %   ?debugMsg("stop first_node"),
     
  %   ?debugMsg("Start lock_test_1"),
  %   ?assertEqual(ok,lock_test_1()),
@@ -47,6 +60,64 @@ start()->
 
     ?debugMsg("------>"++atom_to_list(?MODULE)++" ENDED SUCCESSFUL ---------"),
     ok.
+
+%% --------------------------------------------------------------------
+%% Function:start/0 
+%% Description: Initiate the eunit tests, set upp needed processes etc
+%% Returns: non
+%% --------------------------------------------------------------------
+status_machines()->
+    ssh:start(),
+    MachineStatus= machine:status(all),
+    ?assertMatch([{running,[_,_,_]},{not_available,[]}],
+		 MachineStatus),
+    
+     ?assertMatch(ok,machine:update_status(MachineStatus)),
+    ok.
+%% --------------------------------------------------------------------
+%% Function:start/0 
+%% Description: Initiate the eunit tests, set upp needed processes etc
+%% Returns: non
+%% --------------------------------------------------------------------
+syslog()->
+    {ok,HostId}=net:gethostname(),
+    SyslogNode=list_to_atom("syslog@"++HostId),
+    ?assertMatch({ok,SyslogNode},slave:start(HostId,syslog,"-pa log/ebin -setcookie abc")),
+    ?assertMatch(ok,rpc:call(SyslogNode,application,start,[syslog],5000)),
+    ?assertMatch({pong,SyslogNode,syslog},rpc:call(SyslogNode,syslog,ping,[],1000)), 
+
+    ok.
+%% --------------------------------------------------------------------
+%% Function:start/0 
+%% Description: Initiate the eunit tests, set upp needed processes etc
+%% Returns: non
+%% --------------------------------------------------------------------
+dbase()->
+    DbaseEnvs=[{git_user,"joq62"},{git_pw,"20Qazxsw20"},{cl_dir,"cluster_config"},
+	       {cl_file,"cluster_info.hrl"},{app_specs_dir,"app_specs"},
+	       {service_specs_dir,"service_specs"},
+	       {dbase_nodes,['dbase@c0','dbase@c1','dbase@c2']}
+	      ],
+
+    {ok,HostId}=net:gethostname(),
+    DbaseNode=list_to_atom("dbase@"++HostId),
+    ?assertMatch({ok,DbaseNode},slave:start(HostId,dbase,"-pa dbase/ebin -setcookie abc")),
+    ?assertMatch([ok,ok,ok,ok,ok,ok,ok],[rpc:call(DbaseNode,application,set_env,[dbase,Par,Val],5000)||{Par,Val}<-DbaseEnvs]),
+    ?assertMatch(ok,rpc:call(DbaseNode,application,start,[dbase],5000)),
+    ?assertMatch({pong,DbaseNode,dbase},rpc:call(DbaseNode,dbase,ping,[],1000)), 
+    ?assertMatch(ok,single_node(DbaseNode)),
+    
+    %% Syslog
+   % ?assertMatch({atomic,ok},rpc:call(sd:dbase_node(),db_sd,create,[ServiceId,ServiceVsn,AppId,AppVsn,HostId,VmId,VmDir,Vm],2000)),
+    ?assertMatch({atomic,ok},rpc:call(sd:dbase_node(),db_sd,create,["syslog","1.0.0",
+								   "syslog_100_c2.app_spec","1.0.0",
+								    "c2","syslog","log",syslog],2000)),
+    
+    
+    
+    ok.
+
+
 
 %% --------------------------------------------------------------------
 %% Function:start/0 
@@ -102,27 +173,17 @@ first_node()->
 
 single_node(Dbase0)->
     AppSpecs=rpc:call(Dbase0,db_app_spec,read_all,[],2000),
-    AppSpecsId=[AppId||{AppId,_AppVsn,_Type,_Directives,_AppEnvs,_Services}<-AppSpecs],
+    AppSpecsId=[AppId||{AppId,_AppVsn,_Type,_Host,_VmId,_VmDir,_Cookie,_Services}<-AppSpecs],
 
-    ServiceSpecs=rpc:call(Dbase0,db_service_def,read_all,[],2000),  
-    ServicesSpecsId=[SpecId||{SpecId,_ServiceId,_ServiceVsn,_StartCmd,_GitPath}<-ServiceSpecs],
     PassWd=rpc:call(Dbase0,db_passwd,read_all,[],2000),
     Servers=rpc:call(Dbase0,db_server,read_all,[],2000),
       
-    ?assertMatch(["master_100_c1.app_spec","dbase_100_c2.app_spec",
-		  "calc_c_100.app_spec","master_100_c0.app_spec",
-		  "dbase_100_c0.app_spec","dbase_100_c1.app_spec", 
+    ?assertMatch(["dbase_100_c2.app_spec","calc_c_100.app_spec",
+		  "dbase_100_c0.app_spec","dbase_100_c1.app_spec",
 		  "syslog_100_c1.app_spec","calc_a_100.app_spec",
 		  "syslog_100_c2.app_spec","syslog_100_c0.app_spec",
-		  "calc_b_100.app_spec","master_100_c2.app_spec"],
+		  "calc_b_100.app_spec"],
 		 AppSpecsId),
-
-  ?assertMatch(["multi_100.service_spec","server_100.service_spec",
-		"adder_100.service_spec","divi_100.service_spec",
-		"common_100.service_spec","master_100.service_spec",
-		"syslog_100.service_spec","calc_100.service_spec",
-		"dbase_100.service_spec"],
-	       ServicesSpecsId),
 
     ?assertMatch([{"joq62","20Qazxsw20"}],
 		 PassWd),
@@ -130,6 +191,7 @@ single_node(Dbase0)->
 		  {"c1","joq62","festum01","192.168.0.201",22,not_available},
 		  {"c0","joq62","festum01","192.168.0.200",22,not_available}],
 		 Servers),
+
     
      ok.
 
@@ -139,47 +201,6 @@ single_node(Dbase0)->
 %% Returns: non
 %% --------------------------------------------------------------------
 setup()->
-    % Start log 
-    {ok,HostId}=net:gethostname(),
-    SyslogNode=list_to_atom("syslog@"++HostId),
-    ?assertMatch({ok,SyslogNode},slave:start(HostId,syslog,"-pa log/ebin -setcookie abc")),
-    ?assertMatch(ok,rpc:call(SyslogNode,application,start,[syslog],5000)),
-    ?assertMatch({pong,SyslogNode,syslog},rpc:call(SyslogNode,syslog,ping,[],1000)),
-    % Start dbase
-    DbaseEnvs=[{git_user,"joq62"},{git_pw,"20Qazxsw20"},{cl_dir,"cluster_config"},
-	       {cl_file,"cluster_info.hrl"},{app_specs_dir,"app_specs"},
-	       {service_specs_dir,"service_specs"},
-	       {dbase_nodes,['cluster_dbase@c0','cluster_dbase@c2','cluster_dbase@c2']}
-	      ],
-
-  %  InitDbaseNode=list_to_atom("init_dbase@"++HostId),
-  %  ?assertMatch({ok,InitDbaseNode},slave:start(HostId,init_dbase,"-pa dbase/ebin -setcookie abc")),
-    code:add_path("dbase/ebin"),
-    InitDbaseNode=node(),
-    ?assertMatch([ok,ok,ok,ok,ok,ok,ok],[rpc:call(InitDbaseNode,application,set_env,[dbase,Par,Val],5000)||{Par,Val}<-DbaseEnvs]),
-    ?assertMatch(ok,rpc:call(InitDbaseNode,application,start,[dbase],3*5000)),
-    ?assertMatch({pong,InitDbaseNode,dbase},rpc:call(InitDbaseNode,dbase,ping,[],1000)),
-
-    ?assertMatch(ok,single_node(InitDbaseNode)),
-    
-    % Start first part of the cluster on this host
-    
-    % 1. Check running hosts  
-    ssh:start(),
-    % 2. Check and update machine status
-    StatusMachines=machine:status(all),
-    misc_log:msg(log,
-		 ["StatusMachines = ",StatusMachines],
-		 node(),?MODULE,?LINE),
-    ok=machine:update_status(StatusMachines),
-    
-    % start Syslog this host
-
-    % Start Dbase
-    % Start Control
-
-    % Exit 
-    % Clone dbases 
     
     
     ok.
